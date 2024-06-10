@@ -1,0 +1,84 @@
+# Приложение А
+# Код для аналитического расчета типов занятости, средней заработной плате по годам, распределении вакансий, корреляции между удаленной работой и заработной платой, распределении уровней опыта. 
+# Листинг А.1 — код для анализа представленного набора данных 
+# Самые распространенные типы занятости
+
+from pyspark.sql import SparkSession
+from pyspark.sql import functions as F
+spark = SparkSession.builder \
+        .appName("ImportTable") \
+        .getOrCreate()
+df = spark.read.table("new_salaries")
+employment_type_new = df.withColumn (
+    'employment_type',
+    F.when(F.col('employment_type') == 'FT', 'Full time')
+     .when(F.col('employment_type') == 'PT', 'Part time')
+     .when(F.col('employment_type') == 'CT', 'Contract')
+     .when(F.col('employment_type') == 'FL', 'Freelance')
+     .otherwise(F.col('employment_type'))
+)
+employment_type_count = employment_type_new.groupBy("employment_type").count()
+sorted_emp_type_count = employment_type_count.orderBy(F.desc('count'))
+sorted_emp_type_count.show()
+sorted_emp_type_count.write.mode("overwrite").saveAsTable("emp_type_count_1")
+# Средняя зп по годам
+
+from pyspark.sql import functions as F
+average_salary_by_year = df.groupBy("work_year") \
+    .agg(F.format_number(F.avg("salary_in_usd"), 2).alias("average_salary"))
+sorted_avg_salary = average_salary_by_year.orderBy("work_year")
+sorted_avg_salary.show()
+orted_avg_salary.write.mode("overwrite").saveAsTable("avg_salary_year_2")
+
+
+
+
+# Наиболее часто встречаемые должности
+
+from pyspark.sql import functions as F
+from pyspark.sql.functions import col, lower, trim
+df = spark.read.table("new_salaries")
+df_cleaned = df.withColumn("job_title_cleaned", lower(trim(col("job_title"))))
+job_title_count = df_cleaned.groupBy("job_title_cleaned").count()
+job_title_count_sorted = job_title_count.orderBy(col("count").desc())
+job_title_count_sorted.show()
+job_title_count_sorted.write.mode("overwrite").saveAsTable("job_title_count_3")
+# Корреляция удаленной работы с заработной платой 
+
+from pyspark.sql import SparkSession
+from pyspark.sql import functions as F
+from pyspark.sql.functions import lit, round
+spark = SparkSession.builder \
+    .appName("RemoteWorkSalaryAnalysis") \
+    .enableHiveSupport() \
+    .getOrCreate() \
+df = spark.read.table("new_salaries")
+average_salary = df.groupBy("remote_ratio").agg(
+    F.avg("salary_in_usd").alias("average_salary"),
+    F.stddev("salary_in_usd").alias("standart_deviation")
+)
+average_salary = average_salary.withColumn("average_salary", round("average_salary", 2))
+average_salary = average_salary.withColumn("standart_deviation", round("standart_deviation", 2))
+correlation = (df.stat.corr("remote_ratio", "salary_in_usd"))
+average_salary.show()
+print(f"Correlation remote_ratio and salary_in_usd: {correlation}")
+average_salary.write.mode("overwrite").saveAsTable("remote_to_salary_correlation_4")
+# Распределение уровня опыта
+
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, when
+spark = SparkSession.builder \
+    .appName("ExperienceLevelDistribution") \
+    .enableHiveSupport() \
+    .getOrCreate()
+
+df = spark.read.table("new_salaries")
+df = df.withColumn("experience_level", 
+                   when(col("experience_level") == "EX", "Executive") \
+                   .when(col("experience_level") == "SE", "Senior") \
+                   .when(col("experience_level") == "MI", "Mid") \
+                   .when(col("experience_level") == "EN", "Entry") \
+                   .otherwise(col("experience_level")))
+experience_level_distribution = df.groupBy("experience_level").count()
+experience_level_distribution.show()
+experience_level_distribution.write.mode("overwrite").saveAsTable("experience_level_distribution_5") 
