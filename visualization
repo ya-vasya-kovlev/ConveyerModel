@@ -1,0 +1,122 @@
+#Приложение Б
+#Код для создания графиков анализированных данных. 
+#Листинг Б.2 — проверка выдвинутых гипотез. 
+
+from pyhive import hive
+import pandas as pd
+import matplotlib.pyplot as plt
+conn = hive.Connection(host="localhost", port=10000, username="student")
+query = "SELECT * FROM emp_type_count_1"
+df = pd.read_sql(query, conn)
+conn.close()
+df_sorted = df.sort_values('emp_type_count_1.count', ascending=True)
+small_categories = df_sorted.head(3)
+small_categories_sum = small_categories['emp_type_count_1.count'].sum()
+df_updated = df_sorted.iloc[3:]
+df_updated = df_updated.append({'emp_type_count_1.employment_type': 'Другие', 'emp_type_count_1.count': small_categories_sum}, ignore_index=True)
+colors = ['gold', 'lightgreen', 'lightcoral', 'lightskyblue', 'violet', 'orange', 'grey']  
+explode = [0.1 if i == df_updated['emp_type_count_1.count'].idxmax() else 0 for i in range(len(df_updated))]
+plt.figure(figsize=(8, 8))
+plt.pie(df_updated['emp_type_count_1.count'], explode=explode, colors=colors[:len(df_updated)], startangle=140,
+        autopct='%1.1f%%', shadow=True)
+plt.legend(df_updated['emp_type_count_1.employment_type'], title="Тип занятости", loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
+plt.title('Распределение типов занятости среди специалистов Data Engineering')
+plt.axis('equal')
+plt.show() 
+
+from pyhive import hive
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+conn = hive.Connection(host="localhost", port=10000, username="student")
+query = "SELECT * FROM avg_salary_year_2"
+df = pd.read_sql(query, conn)
+conn.close()
+df['avg_salary_year_2.average_salary'] = df['avg_salary_year_2.average_salary'].replace(',', '', regex=True).astype(float)
+max_salary = df['avg_salary_year_2.average_salary'].max()
+colors = plt.cm.Blues(df['avg_salary_year_2.average_salary'] / max_salary)
+plt.figure(figsize=(10, 6))
+plt.bar(df['avg_salary_year_2.work_year'], df['avg_salary_year_2.average_salary'], color=colors)
+plt.title('Средняя зарплата по годам')
+plt.xlabel('Год')
+plt.ylabel('Средняя зарплата')
+for i, salary in enumerate(df['avg_salary_year_2.average_salary']):
+    plt.text(df['avg_salary_year_2.work_year'][i], salary, f'{salary:,.2f}', ha='center', va='bottom')
+plt.show()
+plt.savefig('average_salary_by_year.png')
+
+from pyhive import hive
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+conn = hive.Connection(host="localhost", port=10000, username="student")
+query = "SELECT * FROM job_title_count_3"
+df = pd.read_sql(query, conn)
+conn.close()
+df_sorted = df.sort_values('job_title_count_3.count', ascending=False)
+top_n = 10
+df_top = df_sorted.head(top_n)
+colors = plt.cm.Blues(np.linspace(0.3, 1, top_n))
+plt.figure(figsize=(12, 8))
+bars = plt.barh(df_top['job_title_count_3.job_title_cleaned'], 
+                df_top['job_title_count_3.count'], color=colors)
+plt.title('Десять наиболее распространенных должностей'.format(top_n))
+plt.xlabel('Количество')
+plt.ylabel('Должность')
+for bar, value in zip(bars, df_top['job_title_count_3.count']):
+    plt.text(value, bar.get_y() + bar.get_height()/2, str(value), va='center')
+plt.gca().invert_yaxis()
+plt.show()
+plt.savefig('job_title_top10.png')
+
+from pyspark.sql import SparkSession
+from pyspark.sql import functions as F
+from pyspark.sql.functions import lit, round
+spark = SparkSession.builder \
+    .appName("RemoteWorkSalaryAnalysis") \
+    .enableHiveSupport() \
+    .getOrCreate() \
+df = spark.read.table("new_salaries")
+average_salary = df.groupBy("remote_ratio").agg(
+    F.avg("salary_in_usd").alias("average_salary"),
+    F.stddev("salary_in_usd").alias("standart_deviation")
+)
+average_salary = average_salary.withColumn("average_salary", round("average_salary", 2))
+average_salary = average_salary.withColumn("standart_deviation", round("standart_deviation", 2))
+correlation = (df.stat.corr("remote_ratio", "salary_in_usd"))
+average_salary.show()
+print(f"Correlation remote_ratio and salary_in_usd: {correlation}")
+average_salary.write.mode("overwrite").saveAsTable("remote_to_salary_correlation_4")
+plt.figure(figsize=(6, 10))
+plt.errorbar(pandas_filtered_df['remote_ratio'], pandas_filtered_df['average_salary'],
+             yerr=pandas_filtered_df['standart_deviation'], fmt='o', ecolor='red', elinewidth=3, capsize=5)
+plt.errorbar(pandas_filtered_df['remote_ratio'], pandas_filtered_df['average_salary'],
+             yerr=pandas_filtered_df['standart_deviation'], 
+             fmt='o', ecolor='red', elinewidth=3, capsize=5, label='Средняя зарплата ± стандартное отклонение')
+plt.legend(loc='upper right')
+plt.title('Средняя зарплата и стандартное отклонение по доле удаленной работы')
+plt.xlabel('Доля удаленной работы (%)')
+plt.ylabel('Средняя зарплата (USD)')
+plt.xticks([0, 50, 100])  
+plt.grid(False)
+plt.show()
+from pyhive import hive
+import pandas as pd
+import matplotlib.pyplot as plt
+conn = hive.Connection(host="localhost", port=10000, username="student")
+query = "SELECT experience_level, count FROM experience_level_distribution_5"
+df = pd.read_sql(query, conn)
+conn.close()
+print(df.columns)
+df['experience_level'] = df['experience_level'].astype(str)
+df['count'] = df['count'].astype(int)
+plt.figure(figsize=(10, 6))
+plt.bar(df['experience_level'], df['count'], color=['blue', 'green', 'orange', 'red'])
+plt.title('Распределение количества людей по уровню опыта')
+plt.xlabel('Уровень опыта')
+plt.ylabel('Количество людей')
+for i, (exp_level, count) in enumerate(zip(df['experience_level'], df['count'])):
+    plt.text(i, count + 300, str(count), ha='center')
+plt.tight_layout()
+plt.show()
+plt.savefig('experience_level_distribution.png')
